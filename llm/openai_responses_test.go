@@ -161,7 +161,7 @@ func TestToResponsesInput(t *testing.T) {
 	}
 	// thinking must not leak into any item.
 	for _, it := range in {
-		if strings.Contains(it.Content, "dropped") {
+		if s, ok := it.Content.(string); ok && strings.Contains(s, "dropped") {
 			t.Fatalf("thinking leaked: %+v", it)
 		}
 	}

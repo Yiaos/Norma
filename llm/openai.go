@@ -13,11 +13,24 @@ import (
 type openaiProvider struct{ cfg Config }
 
 type oaMessage struct {
-	Role             string       `json:"role"`
-	Content          string       `json:"content,omitempty"`
+	Role string `json:"role"`
+	// Content is a plain string for text turns, or an array of content parts
+	// when the turn carries inline images (OpenAI multimodal user content).
+	Content          any          `json:"content,omitempty"`
 	ReasoningContent string       `json:"reasoning_content,omitempty"`
 	ToolCalls        []oaToolCall `json:"tool_calls,omitempty"`
 	ToolCallID       string       `json:"tool_call_id,omitempty"`
+}
+
+// oaContentPart is one entry of a multimodal user message: text or image_url.
+type oaContentPart struct {
+	Type     string      `json:"type"`
+	Text     string      `json:"text,omitempty"`
+	ImageURL *oaImageURL `json:"image_url,omitempty"`
+}
+
+type oaImageURL struct {
+	URL string `json:"url"` // data:<media_type>;base64,<payload> for inline images
 }
 
 type oaToolCall struct {
@@ -117,18 +130,34 @@ func toOpenAIMessages(system string, msgs []Message) []oaMessage {
 			out = append(out, om)
 		case RoleUser:
 			var text strings.Builder
+			var imgs []oaContentPart
 			var toolMsgs []oaMessage
 			for _, b := range m.Content {
 				switch b.Type {
 				case BlockText:
 					text.WriteString(b.Text)
+				case BlockImage:
+					if b.Source != nil {
+						imgs = append(imgs, oaContentPart{Type: "image_url", ImageURL: &oaImageURL{
+							URL: "data:" + b.Source.MediaType + ";base64," + b.Source.Data,
+						}})
+					}
 				case BlockToolResult:
 					toolMsgs = append(toolMsgs, oaMessage{Role: "tool", ToolCallID: b.ToolUseID, Content: flattenText(b.Content)})
 				}
 			}
 			out = append(out, toolMsgs...)
-			if s := text.String(); s != "" {
-				out = append(out, oaMessage{Role: "user", Content: s})
+			if s := text.String(); s != "" || len(imgs) > 0 {
+				if len(imgs) == 0 {
+					out = append(out, oaMessage{Role: "user", Content: s})
+					continue
+				}
+				parts := make([]oaContentPart, 0, len(imgs)+1)
+				if s != "" {
+					parts = append(parts, oaContentPart{Type: "text", Text: s})
+				}
+				parts = append(parts, imgs...)
+				out = append(out, oaMessage{Role: "user", Content: parts})
 			}
 		}
 	}

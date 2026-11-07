@@ -25,7 +25,17 @@ const (
 	BlockThinking   BlockType = "thinking"
 	BlockToolUse    BlockType = "tool_use"
 	BlockToolResult BlockType = "tool_result"
+	BlockImage      BlockType = "image"
 )
+
+// ImageSource is Anthropic's inline-image source object: a base64 payload with
+// its media type. The OpenAI adapters translate it into image_url data URLs at
+// their boundary, so one representation covers both wire formats.
+type ImageSource struct {
+	Type      string `json:"type"`                 // always "base64"
+	MediaType string `json:"media_type,omitempty"` // image/png, image/jpeg, image/gif, image/webp
+	Data      string `json:"data,omitempty"`       // base64-encoded bytes
+}
 
 // ContentBlock is one piece of message content. Which fields are populated
 // depends on Type. This is the Anthropic content-block union.
@@ -41,6 +51,9 @@ type ContentBlock struct {
 	Thinking  string `json:"thinking,omitempty"`
 	Signature string `json:"signature,omitempty"`
 
+	// Image block (inline; user turns in practice).
+	Source *ImageSource `json:"source,omitempty"`
+
 	// ToolUse: a model request to invoke a tool.
 	ID    string          `json:"id,omitempty"`
 	Name  string          `json:"name,omitempty"`
@@ -54,6 +67,11 @@ type ContentBlock struct {
 
 // TextBlock builds a text content block.
 func TextBlock(s string) ContentBlock { return ContentBlock{Type: BlockText, Text: s} }
+
+// ImageBlock builds an image content block from a base64 payload.
+func ImageBlock(mediaType, base64Data string) ContentBlock {
+	return ContentBlock{Type: BlockImage, Source: &ImageSource{Type: "base64", MediaType: mediaType, Data: base64Data}}
+}
 
 // ToolResultText builds a tool_result block carrying a single text block.
 func ToolResultText(toolUseID, text string, isError bool) ContentBlock {

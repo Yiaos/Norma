@@ -434,6 +434,15 @@ type hookFirer interface {
 // final event is KindResult; Session state is updated when the consumer reaches
 // it (FR-07.3).
 func (s *Session) Prompt(ctx context.Context, input string) iter.Seq2[harness.Event, error] {
+	return s.PromptContent(ctx, []llm.ContentBlock{llm.TextBlock(input)})
+}
+
+// PromptContent is Prompt for an explicit user-content block list, so a turn can
+// carry inline images alongside text. The first text block (or the concatenation
+// of all of them) stands in for the string input where a string is expected:
+// memory relevance matching and UserPromptSubmit hooks.
+func (s *Session) PromptContent(ctx context.Context, blocks []llm.ContentBlock) iter.Seq2[harness.Event, error] {
+	input := llm.Message{Role: llm.RoleUser, Content: blocks}.Text()
 	// Auto-inject memories relevant to this prompt (Phase 4).
 	if s.opts.Memory != nil && s.opts.Memory.AutoInject && s.opts.Memory.Store != nil {
 		max := s.opts.Memory.MaxInject
@@ -441,7 +450,7 @@ func (s *Session) Prompt(ctx context.Context, input string) iter.Seq2[harness.Ev
 			max = 3
 		}
 		if mems := s.opts.Memory.Store.Relevant(input, max); len(mems) > 0 {
-			input = input + "\n\n" + memory.RenderForInjection(mems, time.Now())
+			blocks = append(append([]llm.ContentBlock{}, blocks...), llm.TextBlock(memory.RenderForInjection(mems, time.Now())))
 		}
 	}
 
@@ -451,7 +460,7 @@ func (s *Session) Prompt(ctx context.Context, input string) iter.Seq2[harness.Ev
 			hf.FireSessionStart(ctx)
 		}
 		if extra := hf.FireUserPromptSubmit(ctx, input); extra != "" {
-			input = input + "\n\n" + extra
+			blocks = append(append([]llm.ContentBlock{}, blocks...), llm.TextBlock(extra))
 		}
 	}
 	// Surface any background-task completions that landed since the previous turn
@@ -472,7 +481,7 @@ func (s *Session) Prompt(ctx context.Context, input string) iter.Seq2[harness.Ev
 			}
 		}
 	}
-	userMsg := llm.UserText(input)
+	userMsg := llm.Message{Role: llm.RoleUser, Content: blocks}
 	s.messages = append(s.messages, userMsg)
 	if s.writer != nil {
 		s.writer.RecordMessage(userMsg, llm.Usage{})
