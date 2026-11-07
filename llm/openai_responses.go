@@ -43,15 +43,23 @@ type orReasoning struct {
 
 // orInputItem is a union: a message (Role+Content string, no Type) or a typed
 // function_call / function_call_output item. omitempty keeps each shape minimal
-// so the API sees exactly one well-formed variant per item.
+// so the API sees exactly one well-formed variant per item. Content is a string
+// for plain text or an array of input parts when the turn carries inline images.
 type orInputItem struct {
 	Type      string `json:"type,omitempty"`
 	Role      string `json:"role,omitempty"`
-	Content   string `json:"content,omitempty"`
+	Content   any    `json:"content,omitempty"`
 	CallID    string `json:"call_id,omitempty"`
 	Name      string `json:"name,omitempty"`
 	Arguments string `json:"arguments,omitempty"`
 	Output    string `json:"output,omitempty"`
+}
+
+// orContentPart is one entry of a multimodal user item (input_text/input_image).
+type orContentPart struct {
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageURL string `json:"image_url,omitempty"` // data:<media_type>;base64,<payload>
 }
 
 type orTool struct {
@@ -93,6 +101,7 @@ func toResponsesInput(msgs []Message) []orInputItem {
 	for _, m := range msgs {
 		role := string(m.Role)
 		var text strings.Builder
+		var imgs []orContentPart
 		// flushText emits accumulated text as a role message, preserving block
 		// order: a text block that precedes a tool_use/tool_result must appear
 		// before that item in the input array, not after it.
@@ -106,6 +115,11 @@ func toResponsesInput(msgs []Message) []orInputItem {
 			switch b.Type {
 			case BlockText:
 				text.WriteString(b.Text)
+			case BlockImage:
+				if b.Source != nil {
+					flushText()
+					imgs = append(imgs, orContentPart{Type: "input_image", ImageURL: "data:" + b.Source.MediaType + ";base64," + b.Source.Data})
+				}
 			case BlockToolUse:
 				flushText()
 				args := string(b.Input)
@@ -119,6 +133,20 @@ func toResponsesInput(msgs []Message) []orInputItem {
 			}
 		}
 		flushText()
+		// A turn with inline images becomes one multimodal item (text + images
+		// in order) rather than separate messages — the API reads parts of a
+		// single user item as one turn.
+		if len(imgs) > 0 {
+			parts := make([]orContentPart, 0, len(imgs)+1)
+			if n := len(out); n > 0 && out[n-1].Role == role && out[n-1].Role == "user" {
+				if s, ok := out[n-1].Content.(string); ok && s != "" {
+					parts = append(parts, orContentPart{Type: "input_text", Text: s})
+					out = out[:n-1]
+				}
+			}
+			parts = append(parts, imgs...)
+			out = append(out, orInputItem{Role: role, Content: parts})
+		}
 	}
 	return out
 }
