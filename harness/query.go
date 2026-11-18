@@ -437,14 +437,19 @@ func (l *loop) run() {
 		l.hasAttemptedReactiveCompact = false
 		l.messages = append(l.messages, asst)
 		turnUsage := usageDelta(usageBefore, l.usage)
-		// The size the model just reported for its input, preferred by the
-		// compactor over local estimation on the next turn's gate check.
-		l.lastInputTokens = turnUsage.InputTokens + turnUsage.OutputTokens
+		// The size the model just reported for its context: full prompt
+		// (uncached input + cache reads + cache writes) plus this turn's
+		// output, which becomes input on the next turn. Preferred by the
+		// compactor over local estimation on the next turn's gate check —
+		// cache segments included, or a cache-hit-heavy session would gate
+		// far below its real size.
+		l.lastInputTokens = turnUsage.InputTokens + turnUsage.CacheReadTokens +
+			turnUsage.CacheWriteTokens + turnUsage.OutputTokens
 		l.record(asst, turnUsage)
 		// surface cumulative usage after each model turn so hosts can show live token
 		// counts during a run (not just at the terminal event).
 		if u := l.usage; u != (llm.Usage{}) {
-			if !l.emit(Event{Kind: KindUsage, Usage: &u}) {
+			if !l.emit(Event{Kind: KindUsage, Usage: &u, PromptTokens: l.lastInputTokens}) {
 				return
 			}
 		}

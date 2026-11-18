@@ -29,6 +29,11 @@ type Event struct {
 	ToolResult *llm.ContentBlock // KindToolResult
 	Terminal   *Terminal         // KindResult
 	Usage      *llm.Usage        // KindUsage: cumulative usage after the latest model turn
+	// PromptTokens is the authoritative current-context size reported by the
+	// provider for the latest model turn: input + cache_read + cache_write
+	// (the full prompt) + output (which becomes input next turn). Same figure
+	// the compaction gate uses; 0 when the provider reported no usage.
+	PromptTokens int // KindUsage
 }
 
 // TerminalReason explains why the loop stopped.
