@@ -111,6 +111,17 @@ func ToolResultText(toolUseID, text string, isError bool) ContentBlock {
 	}
 }
 
+// ToolResultBlocks builds a tool result whose content is the given blocks —
+// e.g. a text explanation followed by inline images delivered alongside it.
+func ToolResultBlocks(toolUseID string, blocks []ContentBlock, isError bool) ContentBlock {
+	return ContentBlock{
+		Type:      BlockToolResult,
+		ToolUseID: toolUseID,
+		Content:   blocks,
+		IsError:   isError,
+	}
+}
+
 // Message is a single conversation turn.
 type Message struct {
 	Role    Role           `json:"role"`

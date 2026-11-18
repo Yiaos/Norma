@@ -130,8 +130,8 @@ type fakeHooks struct {
 	n    int
 }
 
-func (h *fakeHooks) PreToolUse(context.Context, string, []byte) (bool, string, []byte) {
-	return false, "", nil
+func (h *fakeHooks) PreToolUse(context.Context, string, []byte) PreToolUseDecision {
+	return PreToolUseDecision{}
 }
 func (h *fakeHooks) PostToolUse(context.Context, string, []byte, []byte, bool) {}
 func (h *fakeHooks) Stop(context.Context, []llm.Message) (bool, []string, string) {

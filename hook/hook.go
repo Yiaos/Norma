@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/Autumn-27/norma/harness"
 	"github.com/Autumn-27/norma/llm"
 )
 
@@ -86,17 +87,17 @@ func (r *Registry) run(ctx context.Context, t EventType, ev Event) []Result {
 
 // PreToolUse runs PreToolUse hooks. The first block halts; the last non-empty
 // UpdatedInput wins.
-func (r *Registry) PreToolUse(ctx context.Context, name string, input []byte) (bool, string, []byte) {
+func (r *Registry) PreToolUse(ctx context.Context, name string, input []byte) harness.PreToolUseDecision {
 	var updated []byte
 	for _, res := range r.run(ctx, PreToolUse, Event{ToolName: name, Input: input}) {
 		if res.blocked() {
-			return true, res.Message, nil
+			return harness.PreToolUseDecision{Block: true, Message: res.Message}
 		}
 		if len(res.UpdatedInput) > 0 {
 			updated = res.UpdatedInput
 		}
 	}
-	return false, "", updated
+	return harness.PreToolUseDecision{Updated: updated}
 }
 
 // PostToolUse runs PostToolUse hooks (and PostToolUseFailure on error).

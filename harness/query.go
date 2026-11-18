@@ -170,9 +170,22 @@ type Recorder interface {
 // hook). Stop returns two distinct outcomes: preventContinuation (hard
 // terminate) and/or blockingErrors (inject + continue).
 type HookRunner interface {
-	PreToolUse(ctx context.Context, name string, input []byte) (block bool, message string, updated []byte)
+	PreToolUse(ctx context.Context, name string, input []byte) PreToolUseDecision
 	PostToolUse(ctx context.Context, name string, input, result []byte, isErr bool)
 	Stop(ctx context.Context, messages []llm.Message) (prevent bool, blockingErrors []string, message string)
+}
+
+// PreToolUseDecision is the outcome of a PreToolUse hook: block the call with
+// Message (the tool_result the model sees instead of the tool's output),
+// optionally rewrite the input, and optionally attach extra content blocks
+// (e.g. inline images delivered with a steering message) to that tool_result.
+type PreToolUseDecision struct {
+	Block   bool
+	Message string
+	Updated []byte
+	// ExtraBlocks are appended to the block tool_result's content after the
+	// message text. Only read when Block is true.
+	ExtraBlocks []llm.ContentBlock
 }
 
 // QueryDeps are injectable side-effect boundaries for testing (FR-01.6).

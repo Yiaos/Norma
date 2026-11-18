@@ -75,10 +75,14 @@ func (l *loop) execOne(use llm.ContentBlock, emitProgress func(tool.ProgressInfo
 
 	// Pre-tool hook.
 	if l.in.Hooks != nil {
-		if block, msg, updated := l.in.Hooks.PreToolUse(l.ctx, use.Name, input); block {
-			return llm.ToolResultText(use.ID, "Blocked by hook: "+msg, true), nil
-		} else if len(updated) > 0 {
-			input = updated
+		if dec := l.in.Hooks.PreToolUse(l.ctx, use.Name, input); dec.Block {
+			blocks := []llm.ContentBlock{llm.TextBlock("Blocked by hook: " + dec.Message)}
+			if len(dec.ExtraBlocks) > 0 {
+				blocks = append(blocks, dec.ExtraBlocks...)
+			}
+			return llm.ToolResultBlocks(use.ID, blocks, true), nil
+		} else if len(dec.Updated) > 0 {
+			input = dec.Updated
 		}
 	}
 

@@ -13,11 +13,11 @@ func TestPreToolUseBlockAndRewrite(t *testing.T) {
 		}
 		return Result{UpdatedInput: []byte(`{"x":1}`)}
 	})
-	if block, msg, _ := r.PreToolUse(context.Background(), "Bash", nil); !block || msg != "no bash" {
-		t.Fatalf("expected block, got %v %q", block, msg)
+	if dec := r.PreToolUse(context.Background(), "Bash", nil); !dec.Block || dec.Message != "no bash" {
+		t.Fatalf("expected block, got %+v", dec)
 	}
-	if block, _, upd := r.PreToolUse(context.Background(), "Read", nil); block || string(upd) != `{"x":1}` {
-		t.Fatalf("expected rewrite, got block=%v upd=%s", block, upd)
+	if dec := r.PreToolUse(context.Background(), "Read", nil); dec.Block || string(dec.Updated) != `{"x":1}` {
+		t.Fatalf("expected rewrite, got %+v", dec)
 	}
 }
 
